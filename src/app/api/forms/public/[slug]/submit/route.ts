@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateSubmission } from '@/lib/forms/validation';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 import type { FieldType } from '@/lib/forms/types';
 
 interface PublicFormField {
@@ -50,6 +51,14 @@ export async function POST(
       return NextResponse.json({ error: 'Form is not published' }, { status: 403 });
     }
 
+    const { allowed, retryAfter } = checkRateLimit(`${clientIp(request)}:${form.id}`);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many submissions. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
+    }
+
     const body = await request.json();
     const fieldValues = body.fieldValues as Record<string, unknown> | undefined;
 
@@ -85,7 +94,8 @@ export async function POST(
         values: {
           create: Object.entries(validationResult.values!).map(([fieldId, value]) => ({
             fieldId,
-            value: String(value),
+            // Arrays (checkboxes) are stored as JSON so option labels may contain commas.
+            value: Array.isArray(value) ? JSON.stringify(value) : String(value),
           })),
         },
       },

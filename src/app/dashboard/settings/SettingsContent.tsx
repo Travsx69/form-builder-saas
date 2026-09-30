@@ -55,7 +55,10 @@ export function SettingsContent({ user }: SettingsContentProps) {
             </div>
           </div>
 
-          <Button>Save changes</Button>
+          <div className="flex items-center gap-3">
+            <Button disabled>Save changes</Button>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Coming soon</span>
+          </div>
         </CardContent>
       </Card>
 
@@ -65,9 +68,12 @@ export function SettingsContent({ user }: SettingsContentProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Account management features like password change, email verification, and connected accounts will be available here.
+            Account management features like password change, email verification, and connected accounts are not available yet.
           </p>
-          <Button variant="outline">Change password</Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" disabled>Change password</Button>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Coming soon</span>
+          </div>
         </CardContent>
       </Card>
 
@@ -77,9 +83,12 @@ export function SettingsContent({ user }: SettingsContentProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Once you delete your account, there is no going back. Please be certain.
+            Account deletion is not available yet. Contact support if you need your account removed.
           </p>
-          <Button variant="destructive">Delete account</Button>
+          <div className="flex items-center gap-3">
+            <Button variant="destructive" disabled>Delete account</Button>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Coming soon</span>
+          </div>
         </CardContent>
       </Card>
     </div>

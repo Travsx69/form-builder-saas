@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { generateCsv } from '@/lib/forms/csv';
 
 async function verifyFormOwnership(formId: string, userId: string) {
   const form = await prisma.form.findUnique({
@@ -8,28 +9,6 @@ async function verifyFormOwnership(formId: string, userId: string) {
     select: { userId: true },
   });
   return form?.userId === userId;
-}
-
-function escapeCsvValue(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function generateCsv(form: { name: string; fields: { id: string; label: string }[] }, responses: { submittedAt: Date; values: { fieldId: string; value: string }[] }[]): string {
-  const fieldLabels = form.fields.map((f) => f.label);
-  const fieldIds = form.fields.map((f) => f.id);
-
-  const header = ['Submitted At', ...fieldLabels].map(escapeCsvValue).join(',');
-
-  const rows = responses.map((response) => {
-    const valueMap = new Map(response.values.map((v) => [v.fieldId, v.value]));
-    const rowValues = fieldIds.map((id) => valueMap.get(id) || '');
-    return [new Date(response.submittedAt).toISOString(), ...rowValues].map(escapeCsvValue).join(',');
-  });
-
-  return [header, ...rows].join('\n');
 }
 
 export async function GET(
@@ -54,7 +33,7 @@ export async function GET(
       select: {
         name: true,
         fields: {
-          select: { id: true, label: true },
+          select: { id: true, label: true, type: true },
           orderBy: { order: 'asc' },
         },
       },

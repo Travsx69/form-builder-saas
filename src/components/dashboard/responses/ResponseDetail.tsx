@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { parseCheckboxValue } from '@/lib/forms/value';
 
 interface ResponseValue {
   id: string;
@@ -157,9 +158,9 @@ export function ResponseDetail({ response, formId, formName }: ResponseDetailPro
                       value.field.type === 'checkboxes' && 'font-mono'
                     )}>
                       {value.field.type === 'checkboxes' ? (
-                        value.value
-                          ? value.value.split(',').map((v) => <span key={v} className="inline-block mr-2 px-2 py-0.5 text-xs bg-zinc-200 text-zinc-700 rounded dark:bg-zinc-700 dark:text-zinc-300">{v.trim()}</span>)
-                          : <span className="text-zinc-500 dark:text-zinc-400">None</span>
+                        parseCheckboxValue(value.value).length > 0 ? (
+                          parseCheckboxValue(value.value).map((v) => <span key={v} className="inline-block mr-2 px-2 py-0.5 text-xs bg-zinc-200 text-zinc-700 rounded dark:bg-zinc-700 dark:text-zinc-300">{v}</span>)
+                        ) : <span className="text-zinc-500 dark:text-zinc-400">None</span>
                       ) : (
                         value.value || <span className="text-zinc-500 dark:text-zinc-400">—</span>
                       )}
