@@ -7,7 +7,7 @@ import { FieldPalette } from './FieldPalette';
 import { FieldList } from './FieldList';
 import { FieldSettings } from './FieldSettings';
 import { FormField, FieldType } from '@/lib/forms/types';
-import { Globe, Copy, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Globe, Copy, Check, Loader2, AlertCircle, BarChart2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FormBuilderProps {
@@ -217,6 +217,16 @@ export function FormBuilder({ form: initialForm }: FormBuilderProps) {
                 Copy Public URL
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+            >
+              <a href={`/dashboard/forms/${form.id}/responses`}>
+                <BarChart2 className="h-4 w-4 mr-1" />
+                Responses
+              </a>
+            </Button>
             <Button
               variant={form.isPublished ? 'secondary' : 'default'}
               size="sm"

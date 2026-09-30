@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { Plus, Trash2, Edit, ExternalLink, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, Edit, ExternalLink, MoreVertical, BarChart2 } from 'lucide-react';
 
 interface Form {
   id: string;
@@ -83,6 +83,10 @@ export function FormsListClient({ initialForms }: FormsListClientProps) {
     window.open(`/f/${slug}`, '_blank', 'noopener,noreferrer');
   };
 
+  const handleViewResponsesClick = (formId: string) => {
+    router.push(`/dashboard/forms/${formId}/responses`);
+  };
+
   return (
     <div className="space-y-4">
       <form onSubmit={handleCreateForm} className="flex items-center gap-4">
@@ -143,6 +147,10 @@ export function FormsListClient({ initialForms }: FormsListClientProps) {
                       <DropdownMenuItem onClick={() => handleViewPublishedClick(form.slug)}>
                         <ExternalLink className="mr-2 h-4 w-4" />
                         View Published
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleViewResponsesClick(form.id)}>
+                        <BarChart2 className="mr-2 h-4 w-4" />
+                        View Responses
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
