@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  passwordHash  String         @map("password_hash")
+  image         String?
+  emailVerified DateTime?      @map("email_verified")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  forms         Form[]
+  responses     Response[]
+  subscription  Subscription?
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refreshToken      String? @map("refresh_token")
+  accessToken       String? @map("access_token")
+  expiresAt         Int?    @map("expires_at")
+  tokenType         String? @map("token_type")
+  scope             String?
+  idToken           String? @map("id_token")
+  sessionState      String? @map("session_state")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Form {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  slug        String        @unique
+  isPublished Boolean       @default(false) @map("is_published")
+  settings    Json?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  userId      String        @map("user_id")
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fields      FormField[]
+  logicRules  LogicRule[]
+  responses   Response[]
+
+  @@index([userId])
+  @@map("forms")
+}
+
+model FormField {
+  id          String         @id @default(cuid())
+  type        String
+  label       String
+  placeholder String?
+  required    Boolean        @default(false)
+  options     Json?
+  validation  Json?
+  order       Int            @default(0)
+  formId      String         @map("form_id")
+  form        Form           @relation(fields: [formId], references: [id], onDelete: Cascade)
+  responseValues ResponseValue[]
+
+  @@map("form_fields")
+}
+
+model LogicRule {
+  id          String   @id @default(cuid())
+  formId      String   @map("form_id")
+  fieldId     String   @map("field_id")
+  condition   String
+  value       String?
+  action      String
+  targetField String?  @map("target_field")
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@map("logic_rules")
+}
+
+model Response {
+  id        String   @id @default(cuid())
+  formId    String   @map("form_id")
+  userId    String?  @map("user_id")
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  metadata  Json?
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  values    ResponseValue[]
+
+  @@index([formId])
+  @@index([userId])
+  @@map("responses")
+}
+
+model ResponseValue {
+  id         String     @id @default(cuid())
+  responseId String     @map("response_id")
+  fieldId    String     @map("field_id")
+  value      String
+  response   Response   @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  field      FormField  @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, fieldId])
+  @@map("response_values")
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  userId                String    @unique @map("user_id")
+  stripeCustomerId      String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id")
+  stripePriceId         String?   @map("stripe_price_id")
+  stripeCurrentPeriodEnd DateTime? @map("stripe_current_period_end")
+  plan                  String    @default("free")
+  status                String    @default("inactive")
+  cancelAtPeriodEnd     Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model Usage {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  formId      String?  @map("form_id")
+  metric      String
+  count       Int      @default(0)
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, formId, metric, periodStart, periodEnd])
+  @@map("usage")
+}
