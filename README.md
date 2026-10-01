@@ -1,236 +1,89 @@
 # FormFlow
 
-Professional form builder for small businesses, freelancers, agencies, creators, and marketers.  
-"Professional forms without Typeform pricing."
+A form builder SaaS built with Next.js 16 (App Router), TypeScript, Prisma/PostgreSQL,
+and NextAuth v5.
 
-## Technology Stack
-
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS v4
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth v5 (Credentials provider)
-- **Testing**: Vitest + React Testing Library
-- **Validation**: Zod
-
-## Prerequisites
-
-- Node.js 20+
-- PostgreSQL 14+
-- npm or pnpm
-
-## Environment Setup
-
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Update `.env` with your configuration:
-   ```env
-   # Database
-   DATABASE_URL="postgresql://user:password@localhost:5432/formflow?schema=public"
-
-   # Authentication (generate with: openssl rand -base64 32)
-   AUTH_SECRET="your-auth-secret-here"
-   NEXTAUTH_SECRET="your-nextauth-secret-here"
-   NEXTAUTH_URL="http://localhost:3000"
-
-   # Application
-   NEXT_PUBLIC_APP_URL="http://localhost:3000"
-   NEXT_PUBLIC_APP_NAME="FormFlow"
-   ```
-
-## Database Setup
-
-1. Start PostgreSQL locally (or use Docker):
-   ```bash
-   # Using Docker
-   docker run --name formflow-db \
-     -e POSTGRES_USER=postgres \
-     -e POSTGRES_PASSWORD=postgres \
-     -e POSTGRES_DB=formflow \
-     -p 5432:5432 \
-     -d postgres:16
-   ```
-
-2. Run database migrations:
-   ```bash
-   npm run db:migrate
-   ```
-
-3. (Optional) Open Prisma Studio to view data:
-   ```bash
-   npm run db:studio
-   ```
-
-## Development Commands
+## Getting started
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Run tests
-npm run test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Lint code
-npm run lint
-
-# Type check
-npx tsc --noEmit
-
-# Generate Prisma client
-npm run db:generate
-
-# Push schema changes (development)
-npm run db:push
-
-# Run migrations
+cp .env.example .env      # then fill in DATABASE_URL and AUTH_SECRET
 npm run db:migrate
+npm run dev
 ```
 
-## Production Build
+Useful scripts: `npm run dev`, `npm run build`, `npm run test`, `npm run lint`,
+`npm run db:migrate`, `npm run db:studio`.
 
-```bash
-# Build for production
-npm run build
+---
 
-# Start production server
-npm run start
-```
+## Deployment notes
 
-## Project Structure
+### Rate limiting is per-process and in-memory
 
-```
-src/
-├── app/
-│   ├── api/auth/[...nextauth]/   # NextAuth API routes
-│   ├── auth/                     # Auth pages (signin, signup, error)
-│   ├── dashboard/                # Protected dashboard pages
-│   │   ├── forms/                # Forms management
-│   │   ├── responses/            # Responses viewing
-│   │   ├── settings/             # User settings
-│   │   └── billing/              # Billing/subscription
-│   ├── layout.tsx                # Root layout with SessionProvider
-│   ├── page.tsx                  # Landing page
-│   └── globals.css               # Global styles
-├── components/
-│   ├── ui/                       # Reusable UI components
-│   └── dashboard/                # Dashboard-specific components
-├── lib/
-│   ├── auth/                     # NextAuth configuration
-│   ├── prisma.ts                 # Prisma client singleton
-│   └── utils/                    # Utility functions
-├── middleware.ts                 # Auth middleware
-└── actions/                      # Server actions (future)
-```
+`src/lib/rate-limit.ts` keeps its counters in a plain `Map` inside the Node
+process. This means:
 
-## Database Schema
+- **Counters reset on every deploy or restart.**
+- **Counters are not shared between instances.** Running N instances makes the
+  effective limit N times the configured one.
+- There is no external dependency, no Redis, and no network call in the request
+  path.
 
-The Prisma schema includes the following models:
+This is **acceptable for the current MVP**, which targets a single instance. It
+was chosen deliberately over adding a shared store to keep the MVP dependency
+surface small and the request path free of network calls.
 
-- **User** - User accounts with credentials
-- **Account** - OAuth accounts (for future providers)
-- **Session** - User sessions
-- **VerificationToken** - Email verification tokens
-- **Form** - Form definitions
-- **FormField** - Form fields (inputs, selects, etc.)
-- **LogicRule** - Conditional logic rules
-- **Response** - Form submissions
-- **ResponseValue** - Individual field responses
-- **Subscription** - Stripe subscription data
-- **Usage** - Usage tracking for limits
+**If you scale to more than one instance, the configured limits stop being real
+limits** and this must be replaced with shared storage. The drop-in replacement
+is Redis or Upstash:
 
-## Authentication
+1. Replace the `Map` in `src/lib/rate-limit.ts` with a shared counter
+   (Upstash's `@upstash/redis` + `@upstash/ratelimit` is the smallest option).
+2. Keep the exported `checkRateLimit` / `clientIp` / `resetRateLimits` signatures
+   unchanged, or update the four call sites in one commit:
+   - `src/app/api/forms/public/[slug]/submit/route.ts`
+   - `src/app/api/auth/forgot-password/route.ts`
+   - `src/app/api/auth/resend-verification/route.ts`
+3. `resetRateLimits()` exists for tests only and can be dropped once the
+   implementation is shared.
 
-FormFlow uses NextAuth v5 with a credentials provider:
+The `ponytail:` comment at the top of the file records the same trade-off.
 
-- Email/password authentication
-- Passwords hashed with bcrypt (12 rounds)
-- JWT session strategy
-- Protected routes via middleware
+Limits currently in use:
 
-### Auth Pages
+| Scope | Env vars | Default |
+|---|---|---|
+| Public form submission | `SUBMIT_RATE_LIMIT_MAX` / `SUBMIT_RATE_LIMIT_WINDOW_MS` | 10 / 60s, per IP per form |
+| Forgot password & resend | `AUTH_RATE_LIMIT_MAX` / `AUTH_IP_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW_MS` | 3 per email, 20 per IP, 15 min |
 
-- `/auth/signin` - Sign in page
-- `/auth/signup` - Registration page
-- `/auth/error` - Error handling page
+### Email delivery is not configured for production
 
-## Protected Dashboard
+There is no production email provider. `src/lib/email/index.ts` resolves a
+provider from `EMAIL_PROVIDER`:
 
-The dashboard at `/dashboard` requires authentication and includes:
+- **Development** (`EMAIL_PROVIDER` unset or `console`): messages are printed to
+  the server console and buffered in memory, viewable at the dev-only
+  `GET /api/dev/mail` route. That route returns 404 in production.
+- **Production** with `EMAIL_PROVIDER` unset: messages are **dropped** with a
+  warning. Password reset and email verification therefore **do not work in a
+  production deployment** until a provider is added.
 
-- **Forms** - List and manage forms (empty state with "Create your first form" CTA)
-- **Responses** - View form submissions
-- **Settings** - Profile and account settings
-- **Billing** - Subscription management (placeholder for Phase 2)
-- **Navigation** - Sidebar with user menu
+To add one, see the header comment in `src/lib/email/index.ts`. Credentials come
+from environment variables; no key is stored in source.
 
-## Testing
+### Auth
 
-```bash
-# Run all tests
-npm run test
-
-# Run tests with UI
-npx vitest --ui
-```
-
-Tests are located alongside source files in `__tests__` directories.
-
-## Deployment
-
-### Vercel (Recommended)
-
-1. Push to GitHub
-2. Import project in Vercel
-3. Add environment variables
-4. Deploy
-
-### Docker
-
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-## Phase 1 Status
-
-✅ **Completed:**
-- Next.js 16 with TypeScript and Tailwind CSS
-- Prisma schema with all planned models
-- NextAuth v5 authentication (credentials)
-- Protected dashboard with navigation
-- Forms page with empty state
-- Responses page
-- Settings page
-- Billing page (placeholder)
-- User menu with sign out
-- Environment configuration
-- Basic test setup
-- Linting and type checking
-
-## Phase 2 (Planned)
-
-- Form builder (drag-and-drop)
-- Public form renderer
-- Response collection API
-- Stripe integration
-- Email notifications
-- Webhooks
-
-## License
-
-MIT
+- Passwords are bcrypt-hashed at cost 12; minimum length 8.
+- Verification and reset tokens are 256-bit CSPRNG values, stored only as
+  SHA-256 hashes, expire (24h / 1h), and are single-use via an atomic
+  compare-and-set. See `src/lib/auth/tokens.ts`.
+- A password reset increments `User.tokenVersion`, which invalidates every JWT
+  previously issued for that user. The cost is one primary-key lookup per
+  `auth()` call.
+- **Email verification is advisory.** It sets `User.emailVerified` and shows a
+  dashboard banner, but does not gate dashboard access. This is deliberate so no
+  existing account can be locked out; see `src/middleware.ts` and
+  `src/app/dashboard/layout.tsx`.
+- Signup, forgot-password, and resend-verification return identical responses
+  regardless of whether an account exists.
