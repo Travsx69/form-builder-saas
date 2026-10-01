@@ -101,6 +101,15 @@ export function SignInPageContent() {
             </Button>
           </form>
 
+          <p className="text-center text-sm">
+            <Link
+              href="/auth/forgot-password"
+              className="text-zinc-500 hover:underline dark:text-zinc-400"
+            >
+              Forgot password?
+            </Link>
+          </p>
+
           <Separator className="my-4" />
 
           <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">

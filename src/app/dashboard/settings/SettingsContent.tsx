@@ -68,7 +68,8 @@ export function SettingsContent({ user }: SettingsContentProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Account management features like password change, email verification, and connected accounts are not available yet.
+            You can change your password from the sign-in page using the &ldquo;Forgot password?&rdquo; link.
+            Email verification links are sent at sign-up and can be resent from the banner above.
           </p>
           <div className="flex items-center gap-3">
             <Button variant="outline" disabled>Change password</Button>

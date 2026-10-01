@@ -50,3 +50,29 @@ describe('clientIp', () => {
     expect(clientIp(new Request('http://x'))).toBe('unknown');
   });
 });
+
+describe('rate limit policy override', () => {
+  beforeEach(() => {
+    resetRateLimits();
+    process.env.SUBMIT_RATE_LIMIT_MAX = '3';
+  });
+
+  afterEach(() => {
+    delete process.env.SUBMIT_RATE_LIMIT_MAX;
+    resetRateLimits();
+  });
+
+  it('honors an explicit max over the env default', () => {
+    expect(checkRateLimit('a', { max: 1 }).allowed).toBe(true);
+    expect(checkRateLimit('a', { max: 1 }).allowed).toBe(false);
+  });
+
+  it('inherits the default window when only max is overridden', () => {
+    vi.useFakeTimers();
+    expect(checkRateLimit('a', { max: 1 }).allowed).toBe(true);
+    expect(checkRateLimit('a', { max: 1 }).allowed).toBe(false);
+    vi.advanceTimersByTime(60_001);
+    expect(checkRateLimit('a', { max: 1 }).allowed).toBe(true);
+    vi.useRealTimers();
+  });
+});

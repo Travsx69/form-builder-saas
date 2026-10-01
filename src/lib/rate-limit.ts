@@ -14,8 +14,12 @@ export function clientIp(request: Request): string {
   return (forwarded?.split(',')[0] ?? request.headers.get('x-real-ip') ?? 'unknown').trim();
 }
 
-export function checkRateLimit(key: string): { allowed: boolean; remaining: number; retryAfter: number } {
-  const { max, windowMs } = config();
+export function checkRateLimit(
+  key: string,
+  policy?: { max?: number; windowMs?: number }
+): { allowed: boolean; remaining: number; retryAfter: number } {
+  // Spreading undefined is a no-op, so zero-arg calls behave exactly as before.
+  const { max, windowMs } = { ...config(), ...policy };
   const now = Date.now();
 
   for (const [k, v] of hits) {
