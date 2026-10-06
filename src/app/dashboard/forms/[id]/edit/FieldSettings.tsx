@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { FormField, FieldType, isChoiceField, FIELD_TYPE_LABELS } from '@/lib/forms/types';
+import { LogicRulesSection, type RuleDraft } from './LogicRuleEditor';
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: 'short_text', label: 'Short Text' },
@@ -27,9 +28,27 @@ interface FieldSettingsProps {
   field: FormField;
   onUpdate: (fieldId: string, data: Partial<FormField>) => void;
   allFields: FormField[];
+  /** Rules whose target is the selected field. */
+  rules: RuleDraft[];
+  rulesError: string | null;
+  onCreateRule: (
+    fieldId: string,
+    draft: Omit<RuleDraft, 'id' | 'targetFieldId'>
+  ) => void;
+  onUpdateRule: (fieldId: string, ruleId: string, patch: Partial<RuleDraft>) => void;
+  onRemoveRule: (fieldId: string, ruleId: string) => void;
 }
 
-export function FieldSettings({ field, onUpdate, allFields }: FieldSettingsProps) {
+export function FieldSettings({
+  field,
+  onUpdate,
+  allFields,
+  rules,
+  rulesError,
+  onCreateRule,
+  onUpdateRule,
+  onRemoveRule,
+}: FieldSettingsProps) {
   const [localField, setLocalField] = useState<FormField>(field);
 
   const handleChange = (key: keyof FormField, value: unknown) => {
@@ -160,6 +179,18 @@ export function FieldSettings({ field, onUpdate, allFields }: FieldSettingsProps
             </div>
           </div>
         )}
+
+        <Separator />
+
+        <LogicRulesSection
+          targetField={field}
+          allFields={allFields}
+          rules={rules}
+          error={rulesError}
+          onCreate={(draft) => onCreateRule(field.id, draft)}
+          onUpdate={(ruleId, patch) => onUpdateRule(field.id, ruleId, patch)}
+          onRemove={(ruleId) => onRemoveRule(field.id, ruleId)}
+        />
 
         <Separator />
 

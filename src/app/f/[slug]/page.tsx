@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { FieldType, FormField } from '@/lib/forms/types';
+import { computeVisibility, type LogicRule } from '@/lib/forms/logic';
 
 interface PublicFormData {
   id: string;
@@ -18,6 +19,7 @@ interface PublicFormData {
   description: string | null;
   slug: string;
   fields: PublicFormField[];
+  logicRules: LogicRule[];
 }
 
 interface PublicFormField extends FormField {
@@ -400,6 +402,18 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
   });
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [logicRules, setLogicRules] = useState<LogicRule[]>([]);
+
+  // Derived during render so a change to a source answer hides or reveals the
+  // dependent field in the same commit as the keystroke — no flash of a field
+  // the respondent should not see.
+  const visibleFieldIds = formData
+    ? computeVisibility(
+        formData.fields.map((f) => ({ id: f.id, type: f.type })),
+        logicRules,
+        state.values
+      )
+    : new Set<string>();
 
   useEffect(() => {
     async function loadForm() {
@@ -419,6 +433,7 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
 
         const data = await response.json();
         setFormData(data);
+        setLogicRules(data.logicRules ?? []);
 
         // Initialize values
         const initialValues: Record<string, unknown> = {};
@@ -459,11 +474,20 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
 
     setState((prev) => ({ ...prev, isSubmitting: true, submitStatus: 'idle', submitError: null }));
 
+    // Only visible fields are sent. The server recomputes visibility and
+    // discards hidden values regardless, so this is tidiness, not the control.
+    const submittedValues: Record<string, unknown> = {};
+    for (const field of formData.fields) {
+      if (visibleFieldIds.has(field.id)) {
+        submittedValues[field.id] = state.values[field.id];
+      }
+    }
+
     try {
       const response = await fetch(`/api/forms/public/${formData.slug}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fieldValues: state.values }),
+        body: JSON.stringify({ fieldValues: submittedValues }),
       });
 
       const data = await response.json();
@@ -559,7 +583,7 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
 
           <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-6">
             {formData.fields.map((field) => (
-              <div key={field.id}>
+              <div key={field.id} hidden={!visibleFieldIds.has(field.id)}>
                 <FieldRenderer
                   field={field}
                   value={state.values[field.id]}

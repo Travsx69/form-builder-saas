@@ -240,22 +240,34 @@ export function validateSubmission(
     options: string[] | null;
     validation: Record<string, unknown> | null;
   }>,
-  submittedValues: Record<string, unknown>
+  submittedValues: Record<string, unknown>,
+  /**
+   * Fields the respondent can currently see, given the conditional rules.
+   * Omit for forms without logic. A hidden field is not required and its
+   * submitted value is discarded rather than stored.
+   */
+  visibleFieldIds?: ReadonlySet<string>
 ): ValidationResult {
   const errors: Record<string, string> = {};
   const validatedValues: Record<string, unknown> = {};
 
   const fieldMap = new Map(fields.map((f) => [f.id, f]));
+  const isVisible = (id: string) => !visibleFieldIds || visibleFieldIds.has(id);
 
-  // Check for unknown field IDs
+  // Check for unknown field IDs. Checked against every field, hidden or not, so
+  // conditional logic cannot be used to smuggle a value past this guard.
   for (const fieldId of Object.keys(submittedValues)) {
     if (!fieldMap.has(fieldId)) {
       errors[fieldId] = 'Unknown field';
     }
   }
 
-  // Validate each field
   for (const field of fields) {
+    if (!isVisible(field.id)) {
+      // Hidden: neither required, nor stored.
+      continue;
+    }
+
     const value = submittedValues[field.id];
     const error = validateFieldValue(field, value);
 

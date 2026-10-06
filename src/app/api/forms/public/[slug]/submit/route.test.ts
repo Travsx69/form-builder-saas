@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const form = {
   id: 'form1',
   isPublished: true,
+  // No rules: these tests cover a form without conditional logic.
+  logicRules: [],
   fields: [
     { id: 'f1', type: 'checkboxes', label: 'Interests', placeholder: null, required: false, options: ['Sales, Marketing', 'Support'], validation: null, order: 0 },
     { id: 'f2', type: 'short_text', label: 'Name', placeholder: null, required: true, options: null, validation: null, order: 1 },

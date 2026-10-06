@@ -333,4 +333,39 @@ describe('Form validation', () => {
       expect(result.values).not.toHaveProperty('field-3');
     });
   });
+
+  describe('validateSubmission with conditional visibility', () => {
+    const a = { id: 'a', type: 'yes_no' as FieldType, label: 'A', required: true, options: null, validation: null };
+    const b = { id: 'b', type: 'short_text' as FieldType, label: 'B', required: true, options: null, validation: null };
+
+    it('treats every field as visible when no visibility set is given', () => {
+      const result = validateSubmission([a, b], { a: 'yes' });
+      expect(result.success).toBe(false);
+      expect(result.errors?.b).toBeTruthy();
+    });
+
+    it('does not require a hidden field', () => {
+      const result = validateSubmission([a, b], { a: 'yes' }, new Set(['a']));
+      expect(result.success).toBe(true);
+      expect(result.values).toEqual({ a: 'yes' });
+    });
+
+    it('drops a hidden field value instead of storing it', () => {
+      const result = validateSubmission([a, b], { a: 'yes', b: 'sneaky' }, new Set(['a']));
+      expect(result.success).toBe(true);
+      expect(result.values).not.toHaveProperty('b');
+    });
+
+    it('still validates a visible field normally', () => {
+      const result = validateSubmission([a, b], { a: 'yes' }, new Set(['a', 'b']));
+      expect(result.success).toBe(false);
+      expect(result.errors?.b).toBeTruthy();
+    });
+
+    it('still rejects an unknown field id when rules hide other fields', () => {
+      const result = validateSubmission([a, b], { a: 'yes', ghost: 'x' }, new Set(['a']));
+      expect(result.success).toBe(false);
+      expect(result.errors?.ghost).toBe('Unknown field');
+    });
+  });
 });

@@ -7,6 +7,8 @@ import { FieldPalette } from './FieldPalette';
 import { FieldList } from './FieldList';
 import { FieldSettings } from './FieldSettings';
 import { FormField, FieldType } from '@/lib/forms/types';
+import type { LogicRule } from '@/lib/forms/logic';
+import type { RuleDraft } from './LogicRuleEditor';
 import { Globe, Copy, Check, Loader2, AlertCircle, BarChart2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,11 +20,16 @@ interface FormBuilderProps {
     slug: string;
     isPublished: boolean;
     fields: FormField[];
+    logicRules: LogicRule[];
   };
 }
 
 export function FormBuilder({ form: initialForm }: FormBuilderProps) {
   const [fields, setFields] = useState<FormField[]>(initialForm.fields);
+  const [logicRules, setLogicRules] = useState<RuleDraft[]>(
+    initialForm.logicRules.map(toDraft)
+  );
+  const [rulesError, setRulesError] = useState<string | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -122,6 +129,12 @@ export function FormBuilder({ form: initialForm }: FormBuilderProps) {
       if (!response.ok) throw new Error('Failed to delete field');
 
       setFields((prev) => prev.filter((f) => f.id !== fieldId));
+      // A rule referencing a deleted field would be inert but still stored.
+      setLogicRules((prev) =>
+        prev.filter(
+          (r) => r.sourceFieldId !== fieldId && r.targetFieldId !== fieldId
+        )
+      );
       if (selectedFieldId === fieldId) setSelectedFieldId(null);
     } catch {
       alert('Failed to delete field');
@@ -185,6 +198,90 @@ export function FormBuilder({ form: initialForm }: FormBuilderProps) {
       handleReorderFields(newFields.map((f) => f.id));
     },
     [fields, handleReorderFields]
+  );
+
+  const handleCreateRule = useCallback(
+    async (
+      targetFieldId: string,
+      draft: Omit<RuleDraft, 'id' | 'targetFieldId'>
+    ) => {
+      setRulesError(null);
+      try {
+        const response = await fetch(`/api/forms/${form.id}/logic-rules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...draft, targetFieldId }),
+        });
+        if (!response.ok) throw new Error(await readError(response));
+        const rule = (await response.json()) as LogicRule;
+        setLogicRules((prev) => [
+          ...prev,
+          { ...toDraft(rule), targetFieldId: rule.targetField ?? targetFieldId },
+        ]);
+      } catch (err) {
+        setRulesError(err instanceof Error ? err.message : 'Failed to add rule');
+      }
+    },
+    [form.id]
+  );
+
+  const handleUpdateRule = useCallback(
+    async (targetFieldId: string, ruleId: string, patch: Partial<RuleDraft>) => {
+      const existing = logicRules.find((r) => r.id === ruleId);
+      if (!existing) return;
+
+      setRulesError(null);
+      setLogicRules((prev) =>
+        prev.map((r) => (r.id === ruleId ? { ...r, ...patch } : r))
+      );
+      try {
+        const response = await fetch(
+          `/api/forms/${form.id}/logic-rules/${ruleId}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourceFieldId: patch.sourceFieldId ?? existing.sourceFieldId,
+              operator: patch.operator ?? existing.operator,
+              value: patch.value ?? existing.value,
+              action: patch.action ?? existing.action,
+              enabled: patch.enabled ?? existing.enabled,
+              targetFieldId,
+            }),
+          }
+        );
+        if (!response.ok) throw new Error(await readError(response));
+        const rule = (await response.json()) as LogicRule;
+        setLogicRules((prev) =>
+          prev.map((r) => (r.id === ruleId ? { ...toDraft(rule), targetFieldId } : r))
+        );
+      } catch (err) {
+        // Roll the optimistic update back so the panel matches stored state.
+        setLogicRules((prev) =>
+          prev.map((r) => (r.id === ruleId ? existing : r))
+        );
+        setRulesError(err instanceof Error ? err.message : 'Failed to update rule');
+      }
+    },
+    [form.id, logicRules]
+  );
+
+  const handleRemoveRule = useCallback(
+    async (ruleId: string) => {
+      const removed = logicRules.find((r) => r.id === ruleId);
+      setLogicRules((prev) => prev.filter((r) => r.id !== ruleId));
+      try {
+        const response = await fetch(
+          `/api/forms/${form.id}/logic-rules/${ruleId}`,
+          { method: 'DELETE' }
+        );
+        if (!response.ok) throw new Error('Failed to remove rule');
+      } catch (err) {
+        if (removed) setLogicRules((prev) => [...prev, removed]);
+        setRulesError(err instanceof Error ? err.message : 'Failed to remove rule');
+      }
+    },
+    [form.id, logicRules]
   );
 
   return (
@@ -276,6 +373,11 @@ export function FormBuilder({ form: initialForm }: FormBuilderProps) {
                   field={selectedField}
                   onUpdate={handleUpdateField}
                   allFields={fields}
+                  rules={logicRules.filter((r) => r.targetFieldId === selectedField.id)}
+                  rulesError={rulesError}
+                  onCreateRule={handleCreateRule}
+                  onUpdateRule={handleUpdateRule}
+                  onRemoveRule={handleRemoveRule}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-zinc-500 dark:text-zinc-400">
@@ -288,6 +390,27 @@ export function FormBuilder({ form: initialForm }: FormBuilderProps) {
       </div>
     </div>
   );
+}
+
+function toDraft(rule: LogicRule): RuleDraft {
+  return {
+    id: rule.id,
+    sourceFieldId: rule.fieldId,
+    operator: (rule.condition as RuleDraft['operator']) ?? 'equals',
+    value: rule.value ?? '',
+    action: (rule.action as RuleDraft['action']) ?? 'show',
+    enabled: rule.enabled,
+    targetFieldId: rule.targetField ?? '',
+  };
+}
+
+async function readError(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+    return data.error || 'Request failed';
+  } catch {
+    return 'Request failed';
+  }
 }
 
 function getDefaultLabel(type: FieldType): string {

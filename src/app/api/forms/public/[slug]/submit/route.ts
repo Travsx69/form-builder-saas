@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateSubmission } from '@/lib/forms/validation';
+import { computeVisibility, type LogicRule } from '@/lib/forms/logic';
 import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 import type { FieldType } from '@/lib/forms/types';
 
@@ -40,6 +41,18 @@ export async function POST(
           },
           orderBy: { order: 'asc' },
         },
+        logicRules: {
+          select: {
+            id: true,
+            formId: true,
+            fieldId: true,
+            condition: true,
+            value: true,
+            action: true,
+            targetField: true,
+            enabled: true,
+          },
+        },
       },
     });
 
@@ -77,7 +90,21 @@ export async function POST(
       order: f.order,
     }));
 
-    const validationResult = validateSubmission(fields, fieldValues);
+    // Conditional logic is re-evaluated here from the stored rules and the
+    // submitted answers. The client is never trusted to report which fields
+    // were visible — a hidden required field must not block submission, and a
+    // hidden field's value must not be stored.
+    const logicRules = form.logicRules as LogicRule[];
+    const visibleFieldIds =
+      logicRules.length > 0
+        ? computeVisibility(
+            fields.map((f) => ({ id: f.id, type: f.type })),
+            logicRules,
+            fieldValues
+          )
+        : undefined;
+
+    const validationResult = validateSubmission(fields, fieldValues, visibleFieldIds);
 
     if (!validationResult.success) {
       return NextResponse.json(

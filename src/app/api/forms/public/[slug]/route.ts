@@ -41,6 +41,18 @@ export async function GET(
           },
           orderBy: { order: 'asc' },
         },
+        logicRules: {
+          select: {
+            id: true,
+            formId: true,
+            fieldId: true,
+            condition: true,
+            value: true,
+            action: true,
+            targetField: true,
+            enabled: true,
+          },
+        },
       },
     });
 
@@ -69,6 +81,7 @@ export async function GET(
       description: form.description,
       slug: form.slug,
       fields,
+      logicRules: form.logicRules,
     });
   } catch {
     return NextResponse.json(

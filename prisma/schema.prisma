@@ -127,13 +127,19 @@ model FormField {
 model LogicRule {
   id          String   @id @default(cuid())
   formId      String   @map("form_id")
+  // Source field: the question whose answer is inspected.
   fieldId     String   @map("field_id")
+  // Operator: equals | not_equals | contains.
   condition   String
   value       String?
+  // Action: show | hide.
   action      String
+  // Target field: the question shown or hidden.
   targetField String?  @map("target_field")
+  enabled     Boolean  @default(true)
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
+  @@index([formId])
   @@map("logic_rules")
 }
 

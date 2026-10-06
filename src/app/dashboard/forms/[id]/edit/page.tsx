@@ -11,6 +11,18 @@ async function getFormWithFields(formId: string, userId: string) {
       fields: {
         orderBy: { order: 'asc' },
       },
+      logicRules: {
+        select: {
+          id: true,
+          formId: true,
+          fieldId: true,
+          condition: true,
+          value: true,
+          action: true,
+          targetField: true,
+          enabled: true,
+        },
+      },
     },
   });
 
