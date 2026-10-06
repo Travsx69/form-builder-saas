@@ -13,14 +13,20 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect('/auth/signin');
   }
 
-  // Read the verification state from the DB rather than the session. JWT
-  // sessions are stateless, so a session-captured value would still read
-  // "unverified" right after the user clicks their link. Verification is
-  // advisory: this only drives a banner, it never blocks access.
+  // Read verification state and tokenVersion from the DB. JWT sessions are
+  // stateless, so session-captured values would be stale. Verification is
+  // advisory (banner only), but tokenVersion is a security boundary: a
+  // password reset increments it, invalidating all prior JWTs. If the version
+  // no longer matches, the session is dead — redirect to sign-in so a fresh
+  // JWT is minted on next login.
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { emailVerified: true },
+    select: { emailVerified: true, tokenVersion: true },
   });
+
+  if (!user || user.tokenVersion !== (session.user.tokenVersion ?? 0)) {
+    redirect('/auth/signin');
+  }
 
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">

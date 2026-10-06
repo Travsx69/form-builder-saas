@@ -62,10 +62,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return token;
       }
 
-      // Every later request: re-check that the version this JWT was issued with
-      // is still current. A password reset increments tokenVersion, which makes
-      // every previously issued JWT fail this check. Returning null makes
-      // Auth.js clean the session cookie, so the user is signed out.
+      // In Edge runtime (middleware), skip the DB check — Prisma Client doesn't
+      // work there. The tokenVersion validation runs in Node.js contexts instead
+      // (dashboard layout, API routes), where the JWT callback is also invoked.
+      if (process.env.NEXT_RUNTIME === 'edge') {
+        return token;
+      }
+
+      // Every later request (Node.js): re-check that the version this JWT was
+      // issued with is still current. A password reset increments tokenVersion,
+      // which makes every previously issued JWT fail this check. Returning null
+      // makes Auth.js clean the session cookie, so the user is signed out.
       if (typeof token.id === 'string') {
         const current = await prisma.user.findUnique({
           where: { id: token.id },
